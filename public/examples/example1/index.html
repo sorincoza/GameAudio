@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Example 1</title>
+
+    <script src="../../js/game-audio.js"></script>
+
+    <script>
+        var bgAudio = new GameAudioPlayer( 'background_loop.mp3', {
+            onLoad: function(sound){
+                console.log(sound);
+                sound.play();
+            }
+        } );
+    </script>
+
+
+</head>
+<body>
+<button type="button" onclick="bgAudio.play()">Play</button>
+</body>
+</html>
