@@ -57,7 +57,10 @@ function trimChar(origString, charToTrim) {
 
 class GameAudioPlayer{
 
+    // TODO: this constructor looks too long
     constructor( sound_file, options ){
+
+        if( ! options ) options = {};
 
         this.SOUND_NAME = sound_file;
 
