@@ -60,9 +60,9 @@ class GameAudioPlayer{
     // TODO: this constructor looks too long
     constructor( sound_file, options ){
 
-        if( ! options ) options = {};
+        if( ! options  ||  typeof options !== 'object') options = {};
 
-        this.SOUND_NAME = sound_file;
+        this.SOUND = sound_file;
 
         this.loop = false;
         this._isPlaying = false;
@@ -87,12 +87,23 @@ class GameAudioPlayer{
             this.setUpEarliestPrePlay();
         }
 
+
+        this._haveCreateJS = this.haveCreateJS;
+
     }
 
 
     get AUDIO_PLATFORM(){
         //return ( window.Media ? 'Media' : 'Audio' );
         return 'Audio';
+    }
+
+    get haveCreateJS(){
+        if( !this._haveCreateJS ){
+            this._haveCreateJS = !! window.createjs;
+        }
+
+        return this._haveCreateJS;
     }
 
 
@@ -109,14 +120,28 @@ class GameAudioPlayer{
      */
     load(){
 
-        var xhr = (typeof XMLHttpRequest !== 'undefined') ? ( new XMLHttpRequest() ) : false,
-            canLoadFromAjax = xhr  &&  ( typeof xhr.responseType !== 'undefined' ),
-            src = getAudioFile(this.SOUND_NAME);
+        let src = getAudioFile(this.SOUND);
+
+
+        // if CreateJS library is loaded we are using it!
+        if( this.haveCreateJS ){
+            createjs.Sound.registerSound( src, this.SOUND );
+            createjs.Sound.on("fileload", ()=>{
+                this.CACHE.player = this.getNewAudio();
+                this._executeOnLoad();
+            });
+            return;
+        }
+
+
+        // else go with our own simple implementation:
+        let xhr = (typeof XMLHttpRequest !== 'undefined') ? ( new XMLHttpRequest() ) : false,
+            canLoadFromAjax = xhr  &&  ( typeof xhr.responseType !== 'undefined' );
 
         if (canLoadFromAjax) {
 
             xhr.onreadystatechange = ()=>{
-                if (xhr.readyState == 4 && xhr.status == 200) {
+                if (xhr.readyState === 4 && xhr.status === 200) {
                     this.CACHE.src = window.URL.createObjectURL(xhr.response);
                     this.CACHE.player = this.getNewAudio();
                     this._playbackEnd_Watchers();
@@ -132,7 +157,7 @@ class GameAudioPlayer{
             this.CACHE.src = src;
             this.CACHE.player = this.getNewAudio();
             this._playbackEnd_Watchers();
-            //this._executeOnLoad();
+            this._executeOnLoad();
         }
 
     }
@@ -144,8 +169,8 @@ class GameAudioPlayer{
      * Emulate the usual Audio.play() function in JS
      */
     play(){
-        var player = this.CACHE.player;
-        if( player.play ) {
+        let player = this.CACHE.player;
+        if( player ) {
             if( this._isPreplaying ){
                 // force preplay stop
                 player.pause();
@@ -156,12 +181,13 @@ class GameAudioPlayer{
             }
             player.play();
             this._isPlaying = true;
+
         }
     }
 
     playSprite( timeStart, timeEnd ){
-        var player = this.CACHE.player;
-        if( player.play ) {
+        let player = this.CACHE.player;
+        if( player ) {
             if (timeStart !== null && timeEnd) {
                 this._clearSpriteInterval();
                 this.setUpSpritePlay(timeStart, timeEnd);
@@ -172,6 +198,12 @@ class GameAudioPlayer{
 
     playLoop(){
         this.loop = true;
+
+        // try for CreateJS:
+        if( this.haveCreateJS ){
+            this.CACHE.player.play( { loop: -1 } );
+            return;
+        }
 
         if( typeof this.CACHE.player.loop !== 'undefined')
             this.CACHE.player.loop = true;
@@ -185,13 +217,17 @@ class GameAudioPlayer{
      * Emulate the usual Audio.pause() function in JS
      */
     pause(){
-        var player = this.CACHE.player;
-        if( player.pause ) {
-            player.pause();
+        let player = this.CACHE.player;
+
+        if( player ) {
+
+            if( this.haveCreateJS ) player.paused = true;
+            else player.pause();
+
             this._clearSpriteInterval();
             this._destroyLoop();
-            this._isPlaying = false;
         }
+        this._isPlaying = false;
     }
 
 
@@ -201,7 +237,8 @@ class GameAudioPlayer{
      * Therefore you can hear the same sound playing at the same time multiple times.
      */
     playAsync(){
-        this.playNewAudio(); // duplicate and play that
+        if( this.isPlaying() ) this.playNewAudio(); // duplicate and play that
+        else this.play();
     }
 
 
@@ -240,12 +277,20 @@ class GameAudioPlayer{
      * @returns {Audio}
      */
     getNewAudio(){
-        var player = new window[ this.AUDIO_PLATFORM ]();
-        if( this.CACHE.src ) player.src = this.CACHE.src;
-        if( this.loop ) {
-            player.loop = true;
+
+        if( this.haveCreateJS ){
+
+            return createjs.Sound.createInstance( this.SOUND );
+
+        }else {
+
+            var player = new window[this.AUDIO_PLATFORM]();
+            if (this.CACHE.src) player.src = this.CACHE.src;
+            if (this.loop) {
+                player.loop = true;
+            }
+            return player;
         }
-        return player;
     }
 
 
